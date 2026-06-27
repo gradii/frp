@@ -20,6 +20,8 @@ import (
 	"reflect"
 	"strconv"
 
+	pp "github.com/pires/go-proxyproto"
+
 	v1 "github.com/fatedier/frp/pkg/config/v1"
 )
 
@@ -61,8 +63,21 @@ func (pxy *TCPProxy) Run() (remoteAddr string, err error) {
 			}
 		}()
 		pxy.realBindPort = realBindPort
+
+		// Wrap with proxy protocol listener if configured
+		if pxy.cfg.Metadatas["proxyProtocolVersion"] != "" {
+			l = &pp.Listener{
+				Listener: l,
+				Policy: func(upstream net.Addr) (pp.Policy, error) {
+					return pp.REQUIRE, nil // 强制要求 proxy protocol
+				},
+			}
+			xl.Infof("tcp proxy listen port [%d] in group [%s] with proxy protocol required", pxy.cfg.RemotePort, pxy.cfg.LoadBalancer.Group)
+		} else {
+			xl.Infof("tcp proxy listen port [%d] in group [%s]", pxy.cfg.RemotePort, pxy.cfg.LoadBalancer.Group)
+		}
+
 		pxy.listeners = append(pxy.listeners, l)
-		xl.Infof("tcp proxy listen port [%d] in group [%s]", pxy.cfg.RemotePort, pxy.cfg.LoadBalancer.Group)
 	} else {
 		pxy.realBindPort, err = pxy.rc.TCPPortManager.Acquire(pxy.name, pxy.cfg.RemotePort)
 		if err != nil {
@@ -78,8 +93,21 @@ func (pxy *TCPProxy) Run() (remoteAddr string, err error) {
 			err = errRet
 			return
 		}
+
+		// Wrap with proxy protocol listener if configured
+		if pxy.cfg.Metadatas["proxyProtocolVersion"] != "" {
+			listener = &pp.Listener{
+				Listener: listener,
+				Policy: func(upstream net.Addr) (pp.Policy, error) {
+					return pp.REQUIRE, nil // 强制要求 proxy protocol
+				},
+			}
+			xl.Infof("tcp proxy listen port [%d] with proxy protocol required", pxy.cfg.RemotePort)
+		} else {
+			xl.Infof("tcp proxy listen port [%d]", pxy.cfg.RemotePort)
+		}
+
 		pxy.listeners = append(pxy.listeners, listener)
-		xl.Infof("tcp proxy listen port [%d]", pxy.cfg.RemotePort)
 	}
 
 	pxy.cfg.RemotePort = pxy.realBindPort

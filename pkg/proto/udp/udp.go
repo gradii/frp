@@ -40,7 +40,7 @@ func GetContent(m *msg.UDPPacket) (buf []byte, err error) {
 	return m.Content, nil
 }
 
-func ForwardUserConn(udpConn *net.UDPConn, readCh <-chan *msg.UDPPacket, sendCh chan<- *msg.UDPPacket, bufSize int) {
+func ForwardUserConn(udpConn *net.UDPConn, readCh <-chan *msg.UDPPacket, sendCh chan<- *msg.UDPPacket, bufSize int, proxyProtocolVersion string) {
 	// read
 	go func() {
 		for udpMsg := range readCh {
@@ -60,8 +60,24 @@ func ForwardUserConn(udpConn *net.UDPConn, readCh <-chan *msg.UDPPacket, sendCh 
 		if err != nil {
 			return
 		}
-		// NewUDPPacket copies buf[:n], so the read buffer can be reused
-		udpMsg := NewUDPPacket(buf[:n], nil, remoteAddr)
+
+		payload := buf[:n]
+		actualRemoteAddr := remoteAddr
+
+		// Try to parse proxy protocol header from EVERY UDP packet if configured
+		// UDP is stateless, so each packet should contain the header
+		if proxyProtocolVersion != "" {
+			ppHeader, content, err := netpkg.ParseProxyProtocolFromUDP(payload, proxyProtocolVersion)
+			if err == nil && ppHeader != nil {
+				// Successfully parsed proxy protocol header
+				actualRemoteAddr = ppHeader.SourceAddr.(*net.UDPAddr)
+				payload = content
+			}
+			// If parsing fails or no header found, use original data
+		}
+
+		// NewUDPPacket copies payload, so the read buffer can be reused
+		udpMsg := NewUDPPacket(payload, nil, actualRemoteAddr)
 
 		select {
 		case sendCh <- udpMsg:
