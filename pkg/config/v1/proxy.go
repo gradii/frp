@@ -170,6 +170,7 @@ func (c *ProxyBaseConfig) MarshalToMsg(m *msg.NewProxy) {
 	if c.Transport.BandwidthLimitMode != "client" {
 		m.BandwidthLimitMode = c.Transport.BandwidthLimitMode
 	}
+	m.ProxyProtocolVersion = c.Transport.ProxyProtocolVersion
 	m.Group = c.LoadBalancer.Group
 	m.GroupKey = c.LoadBalancer.GroupKey
 	m.Metas = c.Metadatas
@@ -187,6 +188,7 @@ func (c *ProxyBaseConfig) UnmarshalFromMsg(m *msg.NewProxy) {
 	if m.BandwidthLimitMode != "" {
 		c.Transport.BandwidthLimitMode = m.BandwidthLimitMode
 	}
+	c.Transport.ProxyProtocolVersion = m.ProxyProtocolVersion
 	c.LoadBalancer.Group = m.Group
 	c.LoadBalancer.GroupKey = m.GroupKey
 	c.Metadatas = m.Metas

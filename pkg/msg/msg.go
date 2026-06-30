@@ -100,16 +100,20 @@ type LoginResp struct {
 
 // When frpc login success, send this message to frps for running a new proxy.
 type NewProxy struct {
-	ProxyName          string            `json:"proxy_name,omitempty"`
-	ProxyType          string            `json:"proxy_type,omitempty"`
-	UseEncryption      bool              `json:"use_encryption,omitempty"`
-	UseCompression     bool              `json:"use_compression,omitempty"`
-	BandwidthLimit     string            `json:"bandwidth_limit,omitempty"`
-	BandwidthLimitMode string            `json:"bandwidth_limit_mode,omitempty"`
-	Group              string            `json:"group,omitempty"`
-	GroupKey           string            `json:"group_key,omitempty"`
-	Metas              map[string]string `json:"metas,omitempty"`
-	Annotations        map[string]string `json:"annotations,omitempty"`
+	ProxyName          string `json:"proxy_name,omitempty"`
+	ProxyType          string `json:"proxy_type,omitempty"`
+	UseEncryption      bool   `json:"use_encryption,omitempty"`
+	UseCompression     bool   `json:"use_compression,omitempty"`
+	BandwidthLimit     string `json:"bandwidth_limit,omitempty"`
+	BandwidthLimitMode string `json:"bandwidth_limit_mode,omitempty"`
+	// ProxyProtocolVersion mirrors ProxyBaseConfig.Transport.ProxyProtocolVersion
+	// from the client config so that frps (and any newProxy plugin) can observe
+	// the client's intent to send proxy protocol headers. Valid values: "", "v1", "v2".
+	ProxyProtocolVersion string            `json:"proxy_protocol_version,omitempty"`
+	Group                string            `json:"group,omitempty"`
+	GroupKey             string            `json:"group_key,omitempty"`
+	Metas                map[string]string `json:"metas,omitempty"`
+	Annotations          map[string]string `json:"annotations,omitempty"`
 
 	// tcp and udp only
 	RemotePort int `json:"remote_port,omitempty"`
