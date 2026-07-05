@@ -62,22 +62,25 @@ func ForwardUserConn(udpConn *net.UDPConn, readCh <-chan *msg.UDPPacket, sendCh 
 		}
 
 		payload := buf[:n]
-		actualRemoteAddr := remoteAddr
+		proxySourceAddr := (*net.UDPAddr)(nil)
 
 		// Try to parse proxy protocol header from EVERY UDP packet if configured
 		// UDP is stateless, so each packet should contain the header
 		if proxyProtocolVersion != "" {
 			ppHeader, content, err := netpkg.ParseProxyProtocolFromUDP(payload, proxyProtocolVersion)
 			if err == nil && ppHeader != nil {
-				// Successfully parsed proxy protocol header
-				actualRemoteAddr = ppHeader.SourceAddr.(*net.UDPAddr)
+				if sourceAddr, ok := ppHeader.SourceAddr.(*net.UDPAddr); ok {
+					proxySourceAddr = sourceAddr
+				}
 				payload = content
 			}
 			// If parsing fails or no header found, use original data
 		}
 
 		// NewUDPPacket copies payload, so the read buffer can be reused
-		udpMsg := NewUDPPacket(payload, nil, actualRemoteAddr)
+		// RemoteAddr must stay as the transport peer so replies go back through
+		// the frontend UDP proxy. LocalAddr carries the proxy-protocol source.
+		udpMsg := NewUDPPacket(payload, proxySourceAddr, remoteAddr)
 
 		select {
 		case sendCh <- udpMsg:
@@ -141,9 +144,15 @@ func Forwarder(dstAddr *net.UDPAddr, readCh <-chan *msg.UDPPacket, sendCh chan<-
 			}
 			mu.Unlock()
 
-			// Add proxy protocol header if configured (only for the first packet of a new connection)
-			if !ok && proxyProtocolVersion != "" && udpMsg.RemoteAddr != nil {
-				ppBuf, err := netpkg.BuildProxyProtocolHeader(udpMsg.RemoteAddr, dstAddr, proxyProtocolVersion)
+			// Add proxy protocol header if configured. UDP is stateless, so each
+			// packet needs its own header. LocalAddr carries the source parsed
+			// from a frontend proxy-protocol header when present.
+			if proxyProtocolVersion != "" && udpMsg.RemoteAddr != nil {
+				sourceAddr := udpMsg.RemoteAddr
+				if udpMsg.LocalAddr != nil {
+					sourceAddr = udpMsg.LocalAddr
+				}
+				ppBuf, err := netpkg.BuildProxyProtocolHeader(sourceAddr, dstAddr, proxyProtocolVersion)
 				if err == nil {
 					// Prepend proxy protocol header to the UDP payload
 					finalBuf := make([]byte, len(ppBuf)+len(buf))
